@@ -66,29 +66,6 @@ const listUrl = `https://bsky.app/profile/${LOGIN_HANDLE}/lists/${listRkey}`;
 
 console.log(`List created or updated from ${FOLLOWING_ACCOUNT_HANDLE}'s follows at ${listUrl}.`);
 
-async function addDidToList(listUri, did) {
-	if (!accessJwt || !loginDid) throw new Error("Not logged in.");
-
-	const res = await fetch(`${LOGIN_PDS}/xrpc/com.atproto.repo.createRecord`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: `Bearer ${accessJwt}`,
-		},
-		body: JSON.stringify({
-			repo: loginDid,
-			collection: "app.bsky.graph.listitem",
-			record: {
-				$type: "app.bsky.graph.listitem",
-				subject: did,
-				list: listUri,
-				createdAt: new Date().toISOString()
-			},
-		})
-	}).then(r => r.json());
-	return res.uri;
-}
-
 async function getOrCreateList(name) {
 	return await findListByName(name) || await createList(name);
 }
@@ -122,8 +99,8 @@ async function findListByName(name) {
 	let cursor = "";
 	do {
 		const res = await fetch(`https://api.bsky.app/xrpc/app.bsky.graph.getLists?limit=100&actor=${loginDid}&cursor=${cursor}`).then(r => r.json());
-		cursor = res.cursor;
-		lists.push(...res.lists);
+		if (res.cursor) cursor = res.cursor;
+		if (res.lists?.length) lists.push(...res.lists);
 	} while (cursor);
 
 	return lists.find(l => l.name === name)?.uri;
@@ -133,9 +110,12 @@ async function getAllFollows(identifier) {
 	const items = [];
 	let cursor = "";
 	do {
-		const res = await fetch(`https://api.bsky.app/xrpc/app.bsky.graph.getFollows?limit=100&actor=${identifier}&cursor=${cursor}`).then(r => r.json());
-		cursor = res.cursor;
-		items.push(...res.follows);
+		const res = await fetch(`https://api.bsky.app/xrpc/app.bsky.graph.getFollows?limit=100&actor=${identifier}&cursor=${cursor}`).then(r => {
+			if (!r.ok) throw new Error("Failed to fetch follows.");
+			return r.json();
+		});
+		if (res.cursor) cursor = res.cursor;
+		if (res.follows?.length) items.push(...res.follows);
 	} while (cursor);
 	return items;
 }
@@ -144,9 +124,12 @@ async function getAllListItems(uri) {
 	const items = [];
 	let cursor = "";
 	do {
-		const res = await fetch(`https://api.bsky.app/xrpc/app.bsky.graph.getList?limit=100&list=${encodeURIComponent(uri)}&cursor=${cursor}`).then(r => r.json());
-		cursor = res.cursor;
-		items.push(...res.items);
+		const res = await fetch(`https://api.bsky.app/xrpc/app.bsky.graph.getList?limit=100&list=${encodeURIComponent(uri)}&cursor=${cursor}`).then(r => {
+			if (!r.ok) throw new Error("Failed to fetch list");
+			return r.json();
+		});
+		if (res.cursor) cursor = res.cursor;
+		if (res.items?.length) items.push(...res.items);
 	} while (cursor);
 	return items;
 }
